@@ -3,3 +3,5 @@ tensorflow
 gradio
 matplotlib
 opencv-python
+scikit-learn
+joblib

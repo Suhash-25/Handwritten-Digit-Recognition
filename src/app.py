@@ -3,67 +3,62 @@ import gradio as gr
 import numpy as np
 import cv2
 import os
+import joblib
 
-# ELITE PATHING: Find out exactly where this app.py file lives
+# ELITE PATHING
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, '..', 'models', 'digit_brain.h5')
+CNN_PATH = os.path.join(BASE_DIR, '..', 'models', 'digit_brain.h5')
+SVM_PATH = os.path.join(BASE_DIR, '..', 'models', 'digit_svm.pkl')
 
-# 1. Load the "Brain"
-print(f"Loading model from: {MODEL_PATH}")
-model = tf.keras.models.load_model(MODEL_PATH)
+# 1. Load BOTH Brains
+print(f"Loading CNN from: {CNN_PATH}")
+cnn_model = tf.keras.models.load_model(CNN_PATH)
+
+print(f"Loading SVM from: {SVM_PATH}")
+svm_model = joblib.load(SVM_PATH)
 
 def predict_digit(data):
-    # 1. Extract the image from Gradio
     img = data['composite'] 
-    
-    # 2. Convert to grayscale
     img = cv2.cvtColor(img, cv2.COLOR_RGBA2GRAY)
     
-    # 3. Auto-Invert Colors (Make background black, ink white)
+    # Auto-Invert
     if img[0, 0] > 127: 
         img = cv2.bitwise_not(img)
         
-    # 4. ELITE FIX: Auto-Centering (Bounding Box)
-    # Find all pixels that aren't black
+    # Auto-Centering (Bounding Box)
     coords = cv2.findNonZero(img)
     if coords is not None:
-        # Get the coordinates for a tight box around the ink
         x, y, w, h = cv2.boundingRect(coords)
-        
-        # Crop the image to just the digit
         digit = img[y:y+h, x:x+w]
-        
-        # Figure out how to make it a perfect square without squishing it
         length = max(w, h)
         pad_w = (length - w) // 2
         pad_h = (length - h) // 2
-        
-        # Add black borders to make it square
         digit = cv2.copyMakeBorder(digit, pad_h, pad_h, pad_w, pad_w, cv2.BORDER_CONSTANT, value=0)
-        
-        # Resize to 20x20 (This is the secret MNIST standard!)
         digit = cv2.resize(digit, (20, 20))
-        
-        # Add exactly 4 pixels of black padding on all sides to reach 28x28
         img = cv2.copyMakeBorder(digit, 4, 4, 4, 4, cv2.BORDER_CONSTANT, value=0)
     else:
-        # If the canvas is empty, just default to 28x28
         img = cv2.resize(img, (28, 28))
 
-    # 5. Dilation (Thicken the lines slightly)
+    # Dilation & Normalization
     kernel = np.ones((2, 2), np.uint8) 
     img = cv2.dilate(img, kernel, iterations=1)
-    
-    # 6. Normalize (Scale 0-255 down to 0.0-1.0)
-    img = img / 255.0
-    img = img.reshape(1, 28, 28, 1)
+    img_normalized = img / 255.0
 
-    # 7. Predict!
-    prediction = model.predict(img)[0]
+    # --- THE ENSEMBLE VOTE ---
+    # 1. Ask the CNN (Needs 4D shape: 1 image, 28x28, 1 channel)
+    cnn_input = img_normalized.reshape(1, 28, 28, 1)
+    cnn_pred = cnn_model.predict(cnn_input, verbose=0)[0]
     
-    return {str(i): float(prediction[i]) for i in range(10)}
+    # 2. Ask the SVM (Needs 2D shape: 1 image, 784 pixels)
+    svm_input = img_normalized.reshape(1, 784)
+    svm_pred = svm_model.predict_proba(svm_input)[0]
+    
+    # 3. Combine the Votes! (We weight the CNN slightly higher because it's usually better at vision)
+    final_prediction = (cnn_pred * 0.6) + (svm_pred * 0.4)
+    
+    return {str(i): float(final_prediction[i]) for i in range(10)}
 
-# 8. DESIGN THE ELITE UI
+# UI DESIGN
 label = gr.Label(num_top_classes=3) 
 
 interface = gr.Interface(
@@ -71,8 +66,8 @@ interface = gr.Interface(
     inputs=gr.Sketchpad(label="Draw a Digit (0-9)", type="numpy"), 
     outputs=label,
     live=True, 
-    title="Elite Digit Recognition System",
-    description="Now with Auto-Centering! Draw anywhere, any size."
+    title="Ultimate Ensemble Digit Recognizer",
+    description="CNN + SVM Voting Architecture. Try to fool it!"
 )
 
 if __name__ == "__main__":
