@@ -1,9 +1,8 @@
 import tensorflow as tf
 from tensorflow.keras import layers, models
-from sklearn.svm import SVC
+from sklearn.linear_model import SGDClassifier
 import joblib
 import os
-import numpy as np
 
 def train_digit_models():
     # 1. Load the MNIST Dataset
@@ -34,20 +33,19 @@ def train_digit_models():
     cnn_model.save('models/digit_brain.h5')
     print("✅ CNN saved in models/digit_brain.h5")
 
-    # --- MODEL 2: THE SVM (Geometric Brain) ---
-    print("\n🤖 Training Model 2: Support Vector Machine (SVM)...")
-    # SVMs don't understand 2D grids. We must flatten the 28x28 image into a 1D line of 784 pixels.
+    # --- MODEL 2: THE FAST SGD (Geometric Brain) ---
+    print("\n🤖 Training Model 2: Fast SGD Classifier (Full 60k Images)...")
     x_train_flat = x_train.reshape(-1, 28*28).astype('float32') / 255.0
     
-    # We use probability=True so it can "vote" with percentages, just like the CNN!
-    svm_model = SVC(kernel='rbf', probability=True, random_state=42)
+    # loss='log_loss' ensures it can output percentages (probabilities) for our Ensemble vote
+    # n_jobs=-1 tells Python to use EVERY core in your computer's CPU!
+    svm_model = SGDClassifier(loss='log_loss', random_state=42, n_jobs=-1)
     
-    # Training on a 10,000 image subset to save time
-    print("Fitting SVM on a 10k subset (this might take 1-2 minutes)...")
-    svm_model.fit(x_train_flat[:10000], y_train[:10000])
+    print("⚡ Fitting on ALL 60,000 images (Watch how fast this is!)...")
+    svm_model.fit(x_train_flat, y_train)
     
     joblib.dump(svm_model, 'models/digit_svm.pkl')
-    print("✅ SVM saved in models/digit_svm.pkl")
+    print("✅ Fast Geometric Brain saved in models/digit_svm.pkl")
     
     print("\n🎉 ENSEMBLE TRAINING COMPLETE!")
 
