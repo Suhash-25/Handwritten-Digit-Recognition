@@ -1,0 +1,213 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+.gitignore
+.gradio/flagged/dataset1.csv
+.gradio/flagged/Draw a Digit 0-9/28fd58a01a9d5aaa9f6b/composite.png
+.gradio/flagged/Draw a Digit 0-9/561481977d9a9aee7a80/background.png
+.gradio/flagged/Draw a Digit 0-9/5ac827b5ae79de5ead24/layer_0.png
+.gradio/flagged/Draw a Digit 0-9/6e0dcf38e578b0b830d9/background.png
+.gradio/flagged/Draw a Digit 0-9/c15419249e49b90c4bd1/layer_0.png
+.gradio/flagged/Draw a Digit 0-9/e276cf8e27c17a15dbdb/composite.png
+models/digit_brain.h5
+requirements.txt
+src/app.py
+src/predict.py
+src/train.py
+test_setup.py
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path=".gitignore">
+
+</file>
+
+<file path=".gradio/flagged/dataset1.csv">
+Draw a Digit (0-9),output,timestamp
+"{""background"": "".gradio\\flagged\\Draw a Digit 0-9\\561481977d9a9aee7a80\\background.png"", ""layers"": ["".gradio\\flagged\\Draw a Digit 0-9\\c15419249e49b90c4bd1\\layer_0.png""], ""composite"": "".gradio\\flagged\\Draw a Digit 0-9\\e276cf8e27c17a15dbdb\\composite.png"", ""id"": null}","{""label"": null, ""confidences"": null}",2026-03-05 09:28:04.058747
+"{""background"": "".gradio\\flagged\\Draw a Digit 0-9\\6e0dcf38e578b0b830d9\\background.png"", ""layers"": ["".gradio\\flagged\\Draw a Digit 0-9\\5ac827b5ae79de5ead24\\layer_0.png""], ""composite"": "".gradio\\flagged\\Draw a Digit 0-9\\28fd58a01a9d5aaa9f6b\\composite.png"", ""id"": null}","{""label"": ""6"", ""confidences"": [{""label"": ""6"", ""confidence"": 0.45642155408859253}, {""label"": ""8"", ""confidence"": 0.2163691222667694}, {""label"": ""9"", ""confidence"": 0.1241786777973175}]}",2026-03-05 09:31:59.326844
+</file>
+
+<file path="requirements.txt">
+numpy
+tensorflow
+gradio
+matplotlib
+opencv-python
+</file>
+
+<file path="src/app.py">
+import tensorflow as tf
+import gradio as gr
+import numpy as np
+import cv2
+import os
+
+# ELITE PATHING: Find out exactly where this app.py file lives
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Build the absolute path to the model: go up one level (..), then into 'models'
+MODEL_PATH = os.path.join(BASE_DIR, '..', 'models', 'digit_brain.h5')
+
+# 1. Load the "Brain"
+print(f"Loading model from: {MODEL_PATH}")
+model = tf.keras.models.load_model(MODEL_PATH)
+
+# 1. Load the "Brain" we trained in Phase 1
+model = tf.keras.models.load_model('models/digit_brain.h5')
+
+def predict_digit(data):
+    # 1. Extract the image from Gradio
+    img = data['composite'] 
+    
+    # 2. Convert to grayscale
+    img = cv2.cvtColor(img, cv2.COLOR_RGBA2GRAY)
+    
+    # 3. ELITE FIX: Auto-Invert Colors
+    # MNIST needs a BLACK background and WHITE ink.
+    # We check the top-left pixel (index 0,0). If it's bright (white background), we invert the whole image.
+    if img[0, 0] > 127: 
+        img = cv2.bitwise_not(img) # Flips black to white and white to black
+        
+    # 4. ELITE FIX: Dilation (Make the lines thicker)
+    # Neural networks struggle with razor-thin mouse lines. This "bolds" the ink.
+    kernel = np.ones((3, 3), np.uint8)
+    img = cv2.dilate(img, kernel, iterations=2)
+    
+    # 5. Resize to 28x28 and Normalize to 0-1
+    img = cv2.resize(img, (28, 28))
+    img = img / 255.0
+    
+    # 6. Reshape for the CNN (1 image, 28x28 pixels, 1 color channel)
+    img = img.reshape(1, 28, 28, 1)
+
+    # 7. Predict!
+    prediction = model.predict(img)[0]
+    
+    return {str(i): float(prediction[i]) for i in range(10)}
+
+# 4. DESIGN THE ELITE UI
+label = gr.Label(num_top_classes=3) # Show the top 3 most likely digits
+
+interface = gr.Interface(
+    fn=predict_digit, 
+    inputs=gr.Sketchpad(label="Draw a Digit (0-9)", type="numpy"), 
+    outputs=label,
+    live=True, # ELITE MODE: Predicts while you are still drawing!
+    title="Elite Digit Recognition System",
+    description="Draw a digit in the box and watch the AI think in real-time."
+)
+
+if __name__ == "__main__":
+    interface.launch()
+</file>
+
+<file path="src/predict.py">
+
+</file>
+
+<file path="src/train.py">
+import tensorflow as tf
+from tensorflow.keras import layers, models
+import os
+
+def train_digit_model():
+    # 1. Load the MNIST Dataset
+    print("📥 Loading MNIST dataset...")
+    mnist = tf.keras.datasets.mnist
+    (x_train, y_train), (x_test, y_test) = mnist.load_data()
+
+    # 2. Pre-processing (The "Elite" normalization)
+    # We reshape to (28, 28, 1) because CNNs expect 3D inputs (width, height, channels)
+    x_train = x_train.reshape(-1, 28, 28, 1).astype('float32') / 255.0
+    x_test = x_test.reshape(-1, 28, 28, 1).astype('float32') / 255.0
+
+    # 3. Architecting the Neural Network
+    # Think of this as building a series of filters that "squint" at the image
+    model = models.Sequential([
+        # Layer 1: Look for simple edges/curves
+        layers.Conv2D(32, (3, 3), activation='relu', input_shape=(28, 28, 1)),
+        layers.MaxPooling2D((2, 2)),
+        
+        # Layer 2: Combine edges into complex shapes (loops, crosses)
+        layers.Conv2D(64, (3, 3), activation='relu'),
+        layers.MaxPooling2D((2, 2)),
+        
+        # Layer 3: Flatten the 2D image into a 1D line of data
+        layers.Flatten(),
+        layers.Dense(128, activation='relu'),
+        layers.Dropout(0.2), # "Elite" move: randomly shuts off neurons to prevent memorization
+        
+        # Output: 10 neurons (one for each digit 0-9)
+        layers.Dense(10, activation='softmax')
+    ])
+
+    # 4. Compiling the Brain
+    model.compile(optimizer='adam',
+                  loss='sparse_categorical_crossentropy',
+                  metrics=['accuracy'])
+
+    # 5. Training
+    print("🚀 Training started. Watch the 'accuracy' go up!")
+    model.fit(x_train, y_train, epochs=5,validation_data=(x_test, y_test))
+
+    # 6. Saving the Result
+    if not os.path.exists('models'):
+        os.makedirs('models')
+    model.save('models/digit_brain.h5')
+    print("✅ Model saved in models/digit_brain.h5")
+
+if __name__ == "__main__":
+    train_digit_model()
+</file>
+
+<file path="test_setup.py">
+import tensorflow as tf
+import cv2
+import numpy as np
+
+print(f"TensorFlow version: {tf.__version__}")
+print("Setup is successful! Your environment is ready for the Brain.")
+</file>
+
+</files>
